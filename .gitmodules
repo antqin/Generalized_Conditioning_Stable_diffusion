@@ -1,3 +1,9 @@
 [submodule "LooseControlNet1"]
 	path = LooseControlNet1
 	url = https://github.com/GempollAI/LooseControlNet.git
+[submodule "LooseControlNet"]
+	path = LooseControlNet
+	url = https://github.com/GempollAI/LooseControlNet.git
+[submodule "Holodeck"]
+	path = Holodeck
+	url = https://github.com/allenai/Holodeck.git
