@@ -1,0 +1,3 @@
+[submodule "LooseControlNet1"]
+	path = LooseControlNet1
+	url = https://github.com/GempollAI/LooseControlNet.git
