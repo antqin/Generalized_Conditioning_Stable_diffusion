@@ -1,6 +1,6 @@
-[submodule "LooseControlNet"]
-	path = LooseControlNet
-	url = https://github.com/GempollAI/LooseControlNet.git
-[submodule "Holodeck"]
-	path = Holodeck
-	url = https://github.com/allenai/Holodeck.git
+[submodule "3D-FUTURE-ToolBox"]
+	path = 3D-FUTURE-ToolBox
+	url = https://github.com/3D-FRONT-FUTURE/3D-FUTURE-ToolBox.git
+[submodule "LORA"]
+	path = LORA
+	url = https://github.com/cloneofsimo/lora.git
