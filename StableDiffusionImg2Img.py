@@ -10,7 +10,7 @@ model_id_or_path = "runwayml/stable-diffusion-v1-5"
 pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model_id_or_path, torch_dtype=torch.float16)
 pipe = pipe.to(device)
 
-url = "https://raw.githubusercontent.com/3D-FRONT-FUTURE/3D-FUTURE-ToolBox/master/data/scene_data/images/raw_scene.png"
+url = "https://raw.githubusercontent.com/3D-FRONT-FUTURE/3D-FUTURE-ToolBox/master/demo_results/scene/render_image.png"
 
 response = requests.get(url)
 init_image = Image.open(BytesIO(response.content)).convert("RGB")
