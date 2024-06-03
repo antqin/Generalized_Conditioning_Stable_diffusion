@@ -1,16 +1,39 @@
+import argparse
+import hashlib
+import itertools
+import math
 import os
-from PIL import Image
-from torch.utils.data import Dataset, DataLoader
-from transformers import CLIPTokenizer, StableDiffusionPipeline, LoRAConfig, LoRATrainer
-from torchvision import transforms
+import random
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
+import torch.utils.checkpoint
+from torch.utils.data import Dataset, DataLoader
+from accelerate import Accelerator
+from accelerate.logging import get_logger
+from accelerate.utils import set_seed
+from diffusers import (
+    AutoencoderKL,
+    DDPMScheduler,
+    StableDiffusionPipeline,
+    UNet2DConditionModel,
+)
+from diffusers.optimization import get_scheduler
+from transformers import CLIPTextModel, CLIPTokenizer
+from lora_diffusion import (
+    inject_trainable_lora,
+    save_lora_weight,
+    extract_lora_ups_down,
+)
+from PIL import Image
+from torchvision import transforms
 
 class InteriorDesignDataset(Dataset):
-    def __init__(self, idmap_dir, image_dir, transform=None):
+    def __init__(self, idmap_dir, image_dir, tokenizer, size=512, center_crop=False):
         self.idmap_dir = idmap_dir
         self.image_dir = image_dir
-        self.transform = transform
+        self.tokenizer = tokenizer
+        self.size = size
+        self.center_crop = center_crop
         self.image_pairs = self._load_image_pairs()
 
     def _load_image_pairs(self):
@@ -31,86 +54,196 @@ class InteriorDesignDataset(Dataset):
         idmap_path, image_path = self.image_pairs[idx]
         idmap_image = Image.open(idmap_path).convert("RGB")
         goal_image = Image.open(image_path).convert("RGB")
-        if self.transform:
-            idmap_image = self.transform(idmap_image)
-            goal_image = self.transform(goal_image)
-        return idmap_image, goal_image
+        transform = transforms.Compose([
+            transforms.Resize((self.size, self.size)),
+            transforms.CenterCrop(self.size) if self.center_crop else transforms.RandomCrop(self.size),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),
+        ])
+        idmap_image = transform(idmap_image)
+        goal_image = transform(goal_image)
 
-# Set up directories
-train_idmap_dir = "3D-FUTURE-scene/train/idmap"
-train_image_dir = "3D-FUTURE-scene/train/image"
-val_idmap_dir = "3D-FUTURE-scene/val/idmap"
-val_image_dir = "3D-FUTURE-scene/val/image"
+        example = {
+            "instance_images": idmap_image,
+            "instance_prompt_ids": self.tokenizer(
+                "generate a realistic interior room design",
+                padding="do_not_pad",
+                truncation=True,
+                max_length=self.tokenizer.model_max_length,
+            ).input_ids
+        }
+        return example
 
-# Define transforms
-transform = transforms.Compose([
-    transforms.Resize((256, 256)),
-    transforms.ToTensor()
-])
+logger = get_logger(__name__)
 
-# Create datasets
-train_dataset = InteriorDesignDataset(train_idmap_dir, train_image_dir, transform=transform)
-val_dataset = InteriorDesignDataset(val_idmap_dir, val_image_dir, transform=transform)
+def parse_args(input_args=None):
+    parser = argparse.ArgumentParser(description="Simple example of a training script.")
+    parser.add_argument("--pretrained_model_name_or_path", type=str, default=None, required=True)
+    parser.add_argument("--instance_data_dir", type=str, default=None, required=True)
+    parser.add_argument("--output_dir", type=str, default="output", help="The output directory where the model predictions and checkpoints will be written.")
+    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+    parser.add_argument("--resolution", type=int, default=512, help="The resolution for input images, all the images in the train/validation dataset will be resized to this resolution")
+    parser.add_argument("--train_batch_size", type=int, default=4, help="Batch size (per device) for the training dataloader.")
+    parser.add_argument("--num_train_epochs", type=int, default=1)
+    parser.add_argument("--max_train_steps", type=int, default=None, help="Total number of training steps to perform.  If provided, overrides num_train_epochs.")
+    parser.add_argument("--save_steps", type=int, default=500, help="Save checkpoint every X updates steps.")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.")
+    parser.add_argument("--gradient_checkpointing", action="store_true", help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.")
+    parser.add_argument("--lora_rank", type=int, default=4, help="Rank of LoRA approximation.")
+    parser.add_argument("--learning_rate", type=float, default=5e-4, help="Initial learning rate (after the potential warmup period) to use.")
+    parser.add_argument("--logging_dir", type=str, default="logs", help="[TensorBoard](https://www.tensorflow.org/tensorboard) log directory.")
+    parser.add_argument("--mixed_precision", type=str, default=None, choices=["no", "fp16", "bf16"], help="Whether to use mixed precision. Choose between fp16 and bf16 (bfloat16).")
+    parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
+    if input_args is not None:
+        args = parser.parse_args(input_args)
+    else:
+        args = parser.parse_args()
+    return args
 
-# Create data loaders
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
+def main(args):
+    logging_dir = Path(args.output_dir, args.logging_dir)
+    accelerator = Accelerator(
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        mixed_precision=args.mixed_precision,
+        log_with="tensorboard",
+        logging_dir=logging_dir,
+    )
 
-# Initialize the tokenizer
-tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
+    if args.seed is not None:
+        set_seed(args.seed)
 
-# Initialize the Stable Diffusion model
-model = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1")
+    if accelerator.is_main_process:
+        if args.output_dir is not None:
+            os.makedirs(args.output_dir, exist_ok=True)
 
-# Define LoRA configuration
-lora_config = LoRAConfig(
-    r=4,
-    alpha=32,
-    dropout=0.1
-)
+    tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_name_or_path, subfolder="tokenizer")
 
-# Define the loss function
-criterion = nn.MSELoss()
+    text_encoder = CLIPTextModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="text_encoder")
+    vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae")
+    unet = UNet2DConditionModel.from_pretrained(args.pretrained_model_name_or_path, subfolder="unet")
+    unet.requires_grad_(False)
+    unet_lora_params, _ = inject_trainable_lora(unet, r=args.lora_rank)
+    vae.requires_grad_(False)
 
-# Define the optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    train_dataset = InteriorDesignDataset(
+        idmap_dir=os.path.join(args.instance_data_dir, "idmap"),
+        image_dir=os.path.join(args.instance_data_dir, "image"),
+        tokenizer=tokenizer,
+        size=args.resolution,
+        center_crop=True
+    )
 
-# Training loop
-def train_model(train_loader, val_loader, model, tokenizer, criterion, optimizer, num_epochs=5):
-    model.train()
-    for epoch in range(num_epochs):
-        for i, (idmap_images, goal_images) in enumerate(train_loader):
-            optimizer.zero_grad()
-            
-            # Tokenize the prompt
-            inputs = tokenizer(["generate a realistic interior room design"] * idmap_images.size(0), return_tensors="pt", padding=True).input_ids
-            
-            # Forward pass
-            outputs = model(idmap_images, inputs)
-            
-            # Compute loss
-            loss = criterion(outputs, goal_images)
-            
-            # Backward pass and optimization
-            loss.backward()
+    def collate_fn(examples):
+        input_ids = [example["instance_prompt_ids"] for example in examples]
+        pixel_values = [example["instance_images"] for example in examples]
+        pixel_values = torch.stack(pixel_values).to(memory_format=torch.contiguous_format).float()
+        input_ids = tokenizer.pad(
+            {"input_ids": input_ids},
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+            return_tensors="pt",
+        ).input_ids
+        batch = {
+            "input_ids": input_ids,
+            "pixel_values": pixel_values,
+        }
+        return batch
+
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True,
+        collate_fn=collate_fn,
+        num_workers=1,
+    )
+
+    noise_scheduler = DDPMScheduler.from_config(args.pretrained_model_name_or_path, subfolder="scheduler")
+
+    optimizer = torch.optim.AdamW(
+        [{"params": itertools.chain(*unet_lora_params), "lr": args.learning_rate}],
+        betas=(0.9, 0.999),
+        weight_decay=1e-2,
+        eps=1e-08,
+    )
+
+    lr_scheduler = get_scheduler(
+        "constant",
+        optimizer=optimizer,
+        num_warmup_steps=0,
+        num_training_steps=args.max_train_steps,
+    )
+
+    unet, text_encoder, train_dataloader = accelerator.prepare(unet, text_encoder, train_dataloader)
+    weight_dtype = torch.float32
+    if accelerator.mixed_precision == "fp16":
+        weight_dtype = torch.float16
+    elif accelerator.mixed_precision == "bf16":
+        weight_dtype = torch.bfloat16
+
+    vae.to(accelerator.device, dtype=weight_dtype)
+    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+
+    if accelerator.is_main_process:
+        accelerator.init_trackers("dreambooth", config=vars(args))
+
+    total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+
+    print("***** Running training *****")
+    print(f"  Num examples = {len(train_dataset)}")
+    print(f"  Num Epochs = {args.num_train_epochs}")
+    print(f"  Instantaneous batch size per device = {args.train_batch_size}")
+    print(f"  Total train batch size = {total_batch_size}")
+    print(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+    print(f"  Total optimization steps = {args.max_train_steps}")
+    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar.set_description("Steps")
+    global_step = 0
+
+    for epoch in range(args.num_train_epochs):
+        unet.train()
+        text_encoder.train()
+
+        for step, batch in enumerate(train_dataloader):
+            latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
+            latents = latents * 0.18215
+            noise = torch.randn_like(latents)
+            bsz = latents.shape[0]
+            timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device).long()
+            noisy_latents = noise_scheduler.add_noise(latents, noise, timesteps)
+            encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+            model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+            target = noise
+            loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+            accelerator.backward(loss)
+            if accelerator.sync_gradients:
+                params_to_clip = unet.parameters()
+                accelerator.clip_grad_norm_(params_to_clip, 1.0)
             optimizer.step()
-            
-            if (i + 1) % 100 == 0:
-                print(f"Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+            lr_scheduler.step()
+            progress_bar.update(1)
+            optimizer.zero_grad()
+            global_step += 1
+            if accelerator.sync_gradients and global_step % args.save_steps == 0:
+                if accelerator.is_main_process:
+                    save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
+                    os.makedirs(save_path, exist_ok=True)
+                    accelerator.save_state(save_path)
+            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            progress_bar.set_postfix(**logs)
+            accelerator.log(logs, step=global_step)
+            if global_step >= args.max_train_steps:
+                break
 
-        # Validation
-        model.eval()
-        with torch.no_grad():
-            val_loss = 0
-            for idmap_images, goal_images in val_loader:
-                inputs = tokenizer(["generate a realistic interior room design"] * idmap_images.size(0), return_tensors="pt", padding=True).input_ids
-                outputs = model(idmap_images, inputs)
-                val_loss += criterion(outputs, goal_images).item()
-            val_loss /= len(val_loader)
-        print(f"Validation Loss after Epoch {epoch+1}: {val_loss:.4f}")
+    accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        save_path = os.path.join(args.output_dir, "final_checkpoint")
+        accelerator.save_state(save_path)
+        unet = accelerator.unwrap_model(unet)
+        save_lora_weight(unet, os.path.join(args.output_dir, "lora_weight.pt"))
 
-# Train the model
-train_model(train_loader, val_loader, model, tokenizer, criterion, optimizer, num_epochs=5)
+    accelerator.end_training()
 
-# Save the fine-tuned model
-model.save_pretrained("fine_tuned_stable_diffusion")
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)
