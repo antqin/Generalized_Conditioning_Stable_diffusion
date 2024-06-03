@@ -27,6 +27,7 @@ from lora_diffusion import (
 from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
+from torch.nn.utils import clip_grad_norm_
 
 class InteriorDesignDataset(Dataset):
     def __init__(self, idmap_dir, image_dir, tokenizer, size=512, center_crop=False):
@@ -213,15 +214,22 @@ def main(args):
             model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
             target = noise
             loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+
+            if torch.isnan(loss):
+                print("NaN loss detected!")
+                break
+
             accelerator.backward(loss)
             if accelerator.sync_gradients:
                 params_to_clip = unet.parameters()
-                accelerator.clip_grad_norm_(params_to_clip, 1.0)
+                clip_grad_norm_(params_to_clip, 1.0)
+            
             optimizer.step()
             lr_scheduler.step()
             progress_bar.update(1)
             optimizer.zero_grad()
             global_step += 1
+
             if accelerator.sync_gradients and global_step % args.save_steps == 0:
                 if accelerator.is_main_process:
                     save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
@@ -230,8 +238,9 @@ def main(args):
             logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
-            if global_step >= args.max_train_steps:
-                break
+
+        if torch.isnan(loss):
+            break
 
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
