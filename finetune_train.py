@@ -26,6 +26,7 @@ from lora_diffusion import (
 )
 from PIL import Image
 from torchvision import transforms
+from tqdm.auto import tqdm
 
 class InteriorDesignDataset(Dataset):
     def __init__(self, idmap_dir, image_dir, tokenizer, size=512, center_crop=False):
