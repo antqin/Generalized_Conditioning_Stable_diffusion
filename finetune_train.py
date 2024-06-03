@@ -26,7 +26,6 @@ from lora_diffusion import (
 )
 from PIL import Image
 from torchvision import transforms
-from pathlib import Path
 
 class InteriorDesignDataset(Dataset):
     def __init__(self, idmap_dir, image_dir, tokenizer, size=512, center_crop=False):
@@ -102,12 +101,9 @@ def parse_args(input_args=None):
     return args
 
 def main(args):
-    logging_dir = Path(args.output_dir, args.logging_dir)
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
-        log_with="tensorboard",
-        logging_dir=logging_dir,
     )
 
     if args.seed is not None:
