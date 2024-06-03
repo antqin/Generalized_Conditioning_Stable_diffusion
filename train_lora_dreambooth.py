@@ -484,13 +484,11 @@ def parse_args(input_args=None):
 
 
 def main(args):
-    logging_dir = Path(args.output_dir, args.logging_dir)
 
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
         log_with="tensorboard",
-        logging_dir=logging_dir,
     )
 
     # Currently, it's not possible to do gradient accumulation when training two models with accelerate.accumulate
