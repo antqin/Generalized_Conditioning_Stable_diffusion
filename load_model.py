@@ -1,7 +1,7 @@
 import torch
 from diffusers import StableDiffusionPipeline, UNet2DConditionModel, AutoencoderKL, DDPMScheduler
 from transformers import CLIPTextModel, CLIPTokenizer
-import safetensors
+from safetensors.torch import load_file as safe_load
 
 # Path to your checkpoint directory
 checkpoint_dir = "output/final_checkpoint"
@@ -15,9 +15,14 @@ vae = AutoencoderKL.from_pretrained("stabilityai/stable-diffusion-2-1", subfolde
 unet = UNet2DConditionModel.from_pretrained("stabilityai/stable-diffusion-2-1", subfolder="unet")
 
 # Load weights from safetensors
-text_encoder.load_state_dict(torch.load(f"{checkpoint_dir}/model_1.safetensors", map_location="cpu"))
-vae.load_state_dict(torch.load(f"{checkpoint_dir}/model_1.safetensors", map_location="cpu"))
-unet.load_state_dict(torch.load(f"{checkpoint_dir}/model.safetensors", map_location="cpu"))
+text_encoder_weights = safe_load(f"{checkpoint_dir}/model_1.safetensors", device="cpu")
+vae_weights = safe_load(f"{checkpoint_dir}/model_1.safetensors", device="cpu")
+unet_weights = safe_load(f"{checkpoint_dir}/model.safetensors", device="cpu")
+
+# Load state dictionaries
+text_encoder.load_state_dict(text_encoder_weights)
+vae.load_state_dict(vae_weights)
+unet.load_state_dict(unet_weights)
 
 # Create the pipeline
 pipeline = StableDiffusionPipeline(
