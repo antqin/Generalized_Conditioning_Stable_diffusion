@@ -155,7 +155,7 @@ def main(args):
         num_workers=1,
     )
 
-    noise_scheduler = DDPMScheduler.from_config(args.pretrained_model_name_or_path, subfolder="scheduler")
+    noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
 
     optimizer = torch.optim.AdamW(
         [{"params": itertools.chain(*unet_lora_params), "lr": args.learning_rate}],
