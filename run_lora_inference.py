@@ -6,7 +6,7 @@ model_name_or_path = "stabilityai/stable-diffusion-2-1"
 pipeline = StableDiffusionPipeline.from_pretrained(model_name_or_path, torch_dtype=torch.float16).to("cuda")
 
 # Load the LoRA weights
-lora_weights_path = "./finetune-lora-output/checkpoint-900/pytorch_lora_weights.safetensors"
+lora_weights_path = "./finetune-lora-output/checkpoint-900/model.safetensors"
 pipeline.unet.load_attn_procs(lora_weights_path)
 
 # Define the prompt for image generation
