@@ -12,4 +12,4 @@ prompt = "generate a realistic interior room design of a dining room"
 for steps in [5, 10, 25, 50, 75, 100]:
     generator = torch.Generator(device="cuda").manual_seed(1337)  # Set seed for reproducibility
     images = pipeline(prompt, num_inference_steps=steps, generator=generator).images
-    images[0].save(f"baseline_dining_{steps}_steps.png")
+    images[0].save(f"./finetune-lora-dreambooth-output/baseline_dining_{steps}_steps.png")
