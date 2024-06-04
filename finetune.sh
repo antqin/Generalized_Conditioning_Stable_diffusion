@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set environment variables
-export MODEL_NAME="stabilityai/stable-diffusion-v2-1"
+export MODEL_NAME="stabilityai/stable-diffusion-2-1"
 export OUTPUT_DIR="./finetune-lora-output"
 export DATASET_DIR="./lora-train/image"
 
