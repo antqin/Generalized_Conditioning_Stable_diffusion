@@ -4,6 +4,7 @@
 export MODEL_NAME="stabilityai/stable-diffusion-2-1"
 export OUTPUT_DIR="./finetune-lora-dreambooth-output"
 export DATASET_DIR="./lora-train/image"
+export INSTANCE_PROMPT="generate a realistic interior room design"
 
 # Ensure the output directory exists
 mkdir -p $OUTPUT_DIR
@@ -11,7 +12,8 @@ mkdir -p $OUTPUT_DIR
 # Run the training script
 accelerate launch train_lora_dreambooth.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
-  --train_data_dir=${DATASET_DIR} \
+  --instance_data_dir=${DATASET_DIR} \
+  --instance_prompt="${INSTANCE_PROMPT}" \
   --resolution=512 \
   --center_crop \
   --random_flip \
@@ -26,5 +28,5 @@ accelerate launch train_lora_dreambooth.py \
   --report_to=wandb \
   --checkpointing_steps=100 \
   --validation_epochs=15 \
-  --validation_prompt="generate a realistic interior room design" \
+  --validation_prompt="${INSTANCE_PROMPT}" \
   --seed=1337
