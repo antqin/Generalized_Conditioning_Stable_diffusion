@@ -11,7 +11,7 @@ mkdir -p $OUTPUT_DIR
 # Run the training script
 accelerate launch --mixed_precision="fp16" finetune_train.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
-  --train_data_dir=${DATASET_DIR}/image \
+  --train_data_dir=${DATASET_DIR} \
   --resolution=512 \
   --center_crop \
   --random_flip \

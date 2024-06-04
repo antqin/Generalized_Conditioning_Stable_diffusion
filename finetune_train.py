@@ -615,6 +615,8 @@ def main():
     # We need to tokenize inputs and targets.
     column_names = dataset["train"].column_names
 
+    print(dataset)
+
     # 6. Get the column names for input/target.
     dataset_columns = DATASET_NAME_MAPPING.get(args.dataset_name, None)
     if args.image_column is None:
