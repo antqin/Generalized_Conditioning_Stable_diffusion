@@ -16,14 +16,14 @@ accelerate launch finetune_train.py \
   --center_crop \
   --random_flip \
   --train_batch_size=1 \
-  --gradient_accumulation_steps=8 \  # Increase gradient accumulation steps
-  --max_train_steps=3000 \  # Decrease the number of training steps
-  --learning_rate=5e-05 \  # Lower the learning rate
+  --gradient_accumulation_steps=8 \
+  --max_train_steps=3000 \ 
+  --learning_rate=5e-05 \
   --max_grad_norm=1 \
   --lr_scheduler="cosine" \
   --lr_warmup_steps=0 \
   --output_dir=$OUTPUT_DIR \
   --report_to=wandb \
-  --checkpointing_steps=100 \  # Adjust checkpointing steps to save models more frequently
+  --checkpointing_steps=100 \
   --validation_prompt="generate a realistic interior room design" \
   --seed=1337
