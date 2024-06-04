@@ -16,7 +16,6 @@ accelerate launch train_lora_dreambooth.py \
   --instance_prompt="${INSTANCE_PROMPT}" \
   --resolution=512 \
   --center_crop \
-  --random_flip \
   --train_batch_size=1 \
   --gradient_accumulation_steps=8 \
   --max_train_steps=1000 \
