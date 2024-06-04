@@ -14,7 +14,7 @@ prompt = "generate a realistic interior room design of a modern living room with
 
 # Generate the image
 generator = torch.Generator(device="cuda").manual_seed(42)  # Set seed for reproducibility
-images = pipeline(prompt, num_inference_steps=10, generator=generator).images
+images = pipeline(prompt, num_inference_steps=5, generator=generator).images
 
 # Save the generated image
-images[0].save("generated_living_room_image10.png")
+images[0].save("generated_living_room_image5.png")
