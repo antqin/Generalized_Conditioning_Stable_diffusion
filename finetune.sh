@@ -25,6 +25,6 @@ accelerate launch finetune_train.py \
   --output_dir=$OUTPUT_DIR \
   --report_to=wandb \
   --checkpointing_steps=100 \
-  --validation_epochs=100 \
+  --validation_epochs=25 \
   --validation_prompt="generate a realistic interior room design" \
   --seed=1337

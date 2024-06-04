@@ -915,11 +915,8 @@ def main():
             if global_step >= args.max_train_steps:
                 break
         print("EPOCH = " + str(epoch))
-        print("Step = " + str(step))
-        print("accelerator is main: " + str(accelerator.is_main_process))
         if accelerator.is_main_process:
             if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
-                print("EPOCH = " + str(epoch))
                 print("val # = " + str(args.validation_epochs))
                 # create pipeline
                 pipeline = DiffusionPipeline.from_pretrained(
