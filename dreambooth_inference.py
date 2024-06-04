@@ -20,12 +20,12 @@ pipe.load_lora_weights(lora_weights_path)
 pipe = pipe.to("cuda")
 
 # Define the prompt
-prompt = "generate a realistic interior room design of a bedroom"
+prompt = "generate a realistic interior room design of a living room"
 
 # Generate images
 generator = torch.Generator("cuda").manual_seed(seed)
-for steps in [1, 5, 10, 25, 50, 75, 100]:
+for steps in [5, 10, 25, 50, 75, 100]:
     with torch.autocast("cuda"):
         image = pipe(prompt, num_inference_steps=steps, guidance_scale=7.5, generator=generator).images[0]
-        image.save(f"{output_dir}/generated_bedroom_{steps}.png")
-        print("Image saved to", f"{output_dir}/generated_bedroom_{steps}.png")
+        image.save(f"{output_dir}/generated_living_{steps}.png")
+        print("Image saved to", f"{output_dir}/generated_living_{steps}.png")
