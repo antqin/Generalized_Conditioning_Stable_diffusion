@@ -10,11 +10,11 @@ lora_weights_path = "./finetune-lora-output/checkpoint-900/pytorch_lora_weights.
 pipeline.unet.load_attn_procs(lora_weights_path)
 
 # Define the prompt for image generation
-prompt = "generate a realistic interior room design"
+prompt = "generate a realistic interior room design of a bedroom"
 
 # Generate the image
 generator = torch.Generator(device="cuda").manual_seed(42)  # Set seed for reproducibility
 images = pipeline(prompt, num_inference_steps=25, generator=generator).images
 
 # Save the generated image
-images[0].save("generated_image25.png")
+images[0].save("generated_bedroom25.png")
