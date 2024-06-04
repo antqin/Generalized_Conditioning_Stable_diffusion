@@ -17,7 +17,7 @@ accelerate launch finetune_train.py \
   --random_flip \
   --train_batch_size=1 \
   --gradient_accumulation_steps=8 \
-  --max_train_steps=3000 \ 
+  --max_train_steps=3000 \
   --learning_rate=5e-05 \
   --max_grad_norm=1 \
   --lr_scheduler="cosine" \
