@@ -918,8 +918,8 @@ def main():
         if accelerator.is_main_process:
             if args.validation_prompt is not None and epoch % args.validation_epochs == 0:
                 print("HERE!!!")
-                print("EPOCH = " + epoch)
-                print("val # = " + args.validation_epochs)
+                print("EPOCH = " + str(epoch))
+                print("val # = " + str(args.validation_epochs))
                 # create pipeline
                 pipeline = DiffusionPipeline.from_pretrained(
                     args.pretrained_model_name_or_path,
