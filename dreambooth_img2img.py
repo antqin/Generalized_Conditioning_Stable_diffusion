@@ -6,8 +6,12 @@ import os
 # Define paths
 model_name = "stabilityai/stable-diffusion-2-1"
 lora_weights_path = "./finetune-lora-dreambooth-output/pytorch_lora_weights.safetensors"
+# Uncomment below line for LoRA without Dreambooth
+# lora_weights_path = "./finetune-lora-output/pytorch_lora_weights.safetensors"
 input_dir = "./baseline_generations_test"
 output_dir = "./finetune-lora-dreambooth-output/img2img_outputs"
+# Uncomment below line for LoRA without Dreambooth
+# output_dir = "./finetune-lora-dreambooth-output/img2img_outputs"
 
 # Ensure the output directory exists
 os.makedirs(output_dir, exist_ok=True)
