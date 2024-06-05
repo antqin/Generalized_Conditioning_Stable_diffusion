@@ -37,7 +37,7 @@ for filename in os.listdir(input_dir):
         input_path = os.path.join(input_dir, filename)
         image = Image.open(input_path).convert("RGB")
         
-        for steps in [25, 50, 75, 100]:
+        for steps in [50, 100]:
             with torch.autocast("cuda"):
                 generated_image = pipe(prompt=prompt, init_image=image, strength=0.75, num_inference_steps=steps, guidance_scale=7.5, generator=generator).images[0]
                 output_path = os.path.join(output_dir, f"{filename.split('.')[0]}_steps_{steps}.png")
