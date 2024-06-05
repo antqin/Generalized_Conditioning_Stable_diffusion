@@ -30,7 +30,7 @@ pipe.load_lora_weights(lora_weights_path)
 pipe = pipe.to("cuda")
 
 # Define the prompt
-prompt = "generate a realistic interior room design that follows the provided segmentation image"
+prompt = "generate a realistic interior room design with realistic colors that follows the layout of the provided segmentation image"
 
 # Set generator for reproducibility
 generator = torch.Generator("cuda").manual_seed(seed)
