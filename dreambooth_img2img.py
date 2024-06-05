@@ -43,7 +43,7 @@ for filename in os.listdir(input_dir):
         image = image.resize((512,512))
         for steps in [100]:
             with torch.autocast("cuda"):
-                generated_image = pipe(prompt=prompt, image=image, strength=1, num_inference_steps=100, guidance_scale=20).images[0]
+                generated_image = pipe(prompt=prompt, image=image, strength=0.1, num_inference_steps=100, guidance_scale=10).images[0]
                 #generated_image = pipe(prompt=prompt, init_image=image, strength=0.75, num_inference_steps=steps, guidance_scale=7.5, generator=generator).images[0]
                 output_path = os.path.join(output_dir, f"{filename.split('.')[0]}_steps_{steps}.png")
                 generated_image.save(output_path)

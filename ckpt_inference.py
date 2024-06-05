@@ -3,7 +3,7 @@ from diffusers import StableDiffusionPipeline
 
 # Define paths
 model_ckpt_path = "./finetune-lora-dreambooth-output/dreambooth-model.ckpt"
-output_dir = “./ckpt_text2img_output"
+output_dir = "./ckpt_text2img_output"
 
 # Set seed for reproducibility
 seed = 1337
@@ -26,5 +26,5 @@ generator = torch.Generator("cuda").manual_seed(seed)
 for steps in [100]:
     with torch.autocast("cuda"):
         image = pipe(prompt, num_inference_steps=steps, guidance_scale=7.5, generator=generator).images[0]
-        image.save(f"{output_dir}/generated_dining_{steps}.png")
+        image.save(f"{output_dir}/generated_{steps}.png")
         print("Image saved to", f"{output_dir}/generated_{steps}.png")
